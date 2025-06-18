@@ -68,28 +68,32 @@ if prompt := st.chat_input("What would you like to know?"):
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Prepare API request
-    API_URL = "https://api-inference.huggingface.co/models/684bfeda7486403e677a9ef7"
+    # Use a fallback conversational model from Hugging Face
+    API_URL = "https://api-inference.huggingface.co/models/mistralai/Mixtral-8x7B-Instruct-v0.1"
     headers = {
         "Authorization": f"Bearer {st.secrets['HUGGINGFACE_API_KEY']}",
         "Content-Type": "application/json"
     }
-    
+    payload = {
+        "inputs": prompt
+    }
     try:
         # Make API request
-        response = requests.post(API_URL, headers=headers, json={"inputs": prompt})
+        response = requests.post(API_URL, headers=headers, data=json.dumps(payload))
         response.raise_for_status()
-        
-        # Extract and display assistant's response
-        assistant_response = response.json()[0]["generated_text"]
-        
+        data = response.json()
+        # Mixtral returns a list of dicts with 'generated_text'
+        if isinstance(data, list) and len(data) > 0 and "generated_text" in data[0]:
+            assistant_response = data[0]["generated_text"]
+        elif isinstance(data, dict) and "error" in data:
+            assistant_response = f"Error from model: {data['error']}"
+        else:
+            assistant_response = str(data)
         # Add assistant response to chat history
         st.session_state.messages.append({"role": "assistant", "content": assistant_response})
-        
         # Display assistant response
         with st.chat_message("assistant"):
             st.markdown(assistant_response)
-            
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
         st.info("Please make sure you have set up your Hugging Face API key in the secrets.toml file.")
